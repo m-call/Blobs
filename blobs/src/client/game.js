@@ -17,15 +17,17 @@ socket.on("connect", () => {
 const WORLD_WIDTH = 15000;
 const WORLD_HEIGHT = 15000;
 
-// Add a targetRadius property to the player
-const player = {
-  x: WORLD_WIDTH / 2,
-  y: WORLD_HEIGHT / 2,
-  radius: 30,
-  targetRadius: 30, // New property for smooth transition
-  color: "blue",
-  speed: 3,
-};
+// Replace the player object with an array of blobs
+let players = [
+  {
+    x: WORLD_WIDTH / 2,
+    y: WORLD_HEIGHT / 2,
+    radius: 30,
+    color: "blue",
+    speed: 3,
+    splitTime: 0,
+  },
+];
 
 function randomFood() {
   return {
@@ -45,57 +47,155 @@ for (let i = 0; i < FOOD_COUNT; i++) {
   foods.push(randomFood());
 }
 
+// Update mouse event to store mouse position
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
-
 canvas.addEventListener("mousemove", (e) => {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 });
 
+// Splitting logic
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
+    // Only allow splitting if total blobs will not exceed 16
+    if (players.length * 2 > 16) return;
+
+    let newBlobs = [];
+    for (let blob of players) {
+      if (blob.radius > 60) {
+        // Split into two blobs of half radius
+        let angle = Math.random() * Math.PI * 2;
+        let offset = blob.radius;
+        let r = blob.radius / 2;
+        let now = Date.now();
+        newBlobs.push({
+          x: blob.x + Math.cos(angle) * offset,
+          y: blob.y + Math.sin(angle) * offset,
+          radius: r,
+          color: blob.color,
+          speed: 3,
+          splitTime: now,
+        });
+        newBlobs.push({
+          x: blob.x - Math.cos(angle) * offset,
+          y: blob.y - Math.sin(angle) * offset,
+          radius: r,
+          color: blob.color,
+          speed: 3,
+          splitTime: now,
+        });
+      } else {
+        newBlobs.push(blob); // Don't split if too small
+      }
+    }
+    players = newBlobs;
+  }
+});
+
+// Update movement logic for all blobs
 function movePlayerTowardMouse() {
-  // Calculate mouse position in world coordinates
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
-  const dx = mouse.x - centerX;
-  const dy = mouse.y - centerY;
-  const dist = Math.sqrt(dx * dx + dy * dy);
 
-  // Speed decreases more sharply as player gets bigger
-  player.speed = Math.max(1, 100 / player.radius);
-
-  if (dist > 1) {
-    player.x += (dx / dist) * player.speed;
-    player.y += (dy / dist) * player.speed;
-    // Clamp player to world bounds
-    player.x = Math.max(
-      player.radius,
-      Math.min(WORLD_WIDTH - player.radius, player.x)
-    );
-    player.y = Math.max(
-      player.radius,
-      Math.min(WORLD_HEIGHT - player.radius, player.y)
-    );
+  for (let blob of players) {
+    const dx = mouse.x - centerX;
+    const dy = mouse.y - centerY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    blob.speed = Math.max(1, 100 / blob.radius);
+    if (dist > 1) {
+      blob.x += (dx / dist) * blob.speed;
+      blob.y += (dy / dist) * blob.speed;
+      blob.x = Math.max(
+        blob.radius,
+        Math.min(WORLD_WIDTH - blob.radius, blob.x)
+      );
+      blob.y = Math.max(
+        blob.radius,
+        Math.min(WORLD_HEIGHT - blob.radius, blob.y)
+      );
+    }
   }
 }
 
-// Smoothly interpolate the player's radius
-function interpolatePlayerRadius() {
-  const smoothingFactor = 0.1; // Adjust for smoother or faster transitions
-  player.radius += (player.targetRadius - player.radius) * smoothingFactor;
+// Update eating logic for all blobs
+function checkEatFood() {
+  for (let blob of players) {
+    for (let i = foods.length - 1; i >= 0; i--) {
+      const food = foods[i];
+      const dx = blob.x - food.x;
+      const dy = blob.y - food.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < blob.radius + food.radius) {
+        foods.splice(i, 1);
+        blob.radius += 0.5;
+        foods.push(randomFood());
+      }
+    }
+  }
 }
 
-function checkEatFood() {
-  for (let i = foods.length - 1; i >= 0; i--) {
-    const food = foods[i];
-    const dx = player.x - food.x;
-    const dy = player.y - food.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < player.radius + food.radius) {
-      // Eat the food
-      foods.splice(i, 1);
-      player.targetRadius += 0.5; // Update targetRadius instead of radius
-      // Spawn new food to keep the count up
-      foods.push(randomFood());
+function resolveBlobCollisions() {
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      const a = players[i];
+      const b = players[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = a.radius + b.radius;
+      if (dist < minDist && dist > 0) {
+        // Calculate overlap
+        const overlap = minDist - dist;
+        // Push each blob away from the other by half the overlap
+        const pushX = (dx / dist) * (overlap / 2);
+        const pushY = (dy / dist) * (overlap / 2);
+        a.x -= pushX;
+        a.y -= pushY;
+        b.x += pushX;
+        b.y += pushY;
+      }
+    }
+  }
+}
+
+function tryMergeBlobs() {
+  const now = Date.now();
+  // Sort blobs by radius (optional, helps with merging order)
+  players.sort((a, b) => b.radius - a.radius);
+
+  for (let i = 0; i < players.length; i++) {
+    for (let j = i + 1; j < players.length; j++) {
+      const a = players[i];
+      const b = players[j];
+
+      // Only merge if both blobs are ready
+      const mergeDelayA = Math.max(1000, a.radius * 500); // ms
+      const mergeDelayB = Math.max(1000, b.radius * 500); // ms
+      if (now - a.splitTime > mergeDelayA && now - b.splitTime > mergeDelayB) {
+        // Check if blobs are close enough to merge (touching or overlapping)
+        const dx = a.x - b.x;
+        const dy = a.y - b.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= a.radius + b.radius) {
+          // Merge b into a
+          const targetRadius = a.radius + b.radius; // New target radius
+          a.targetRadius = targetRadius; // Set target radius for smooth transition
+          a.splitTime = 0; // Reset splitTime after merging
+          players.splice(j, 1);
+          i = -1; // Restart outer loop since array changed
+          break;
+        }
+      }
+    }
+  }
+}
+
+// Smoothly interpolate the radius of all blobs
+function interpolateBlobRadius() {
+  const smoothingFactor = 0.05; // Adjust for smoother or faster transitions
+  for (let blob of players) {
+    if (blob.targetRadius !== undefined) {
+      blob.radius += (blob.targetRadius - blob.radius) * smoothingFactor;
     }
   }
 }
@@ -132,41 +232,77 @@ function drawGrid(spacing = 50) {
   ctx.restore();
 }
 
+function getPlayerBounds() {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const blob of players) {
+    minX = Math.min(minX, blob.x - blob.radius);
+    minY = Math.min(minY, blob.y - blob.radius);
+    maxX = Math.max(maxX, blob.x + blob.radius);
+    maxY = Math.max(maxY, blob.y + blob.radius);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+// Update drawing logic for all blobs
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Calculate camera offset to keep player centered
-  const offsetX = player.x - canvas.width / 2;
-  const offsetY = player.y - canvas.height / 2;
+  // --- Zoom logic ---
+  const bounds = getPlayerBounds();
+  const blobsWidth = bounds.maxX - bounds.minX;
+  const blobsHeight = bounds.maxY - bounds.minY;
+  const padding = 200; // Extra space around blobs
+
+  // Calculate scale to fit all blobs in view
+  const scaleX = canvas.width / (blobsWidth + padding);
+  const scaleY = canvas.height / (blobsHeight + padding);
+  const scale = Math.min(scaleX, scaleY, 1); // Never zoom in past 1x
+
+  // Center on the average position of all blobs
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+  const offsetX = centerX - canvas.width / (2 * scale);
+  const offsetY = centerY - canvas.height / (2 * scale);
 
   ctx.save();
+  ctx.scale(scale, scale);
   ctx.translate(-offsetX, -offsetY);
 
-  // Draw grid
   drawGrid(50);
 
-  // Draw world border
   ctx.strokeStyle = "#ccc";
   ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-
-  // Draw foods
   foods.forEach(drawBlob);
+  players.forEach(drawBlob);
 
-  // Draw player
-  drawBlob(player);
+  // Draw score (sum of all blob radii)
+  const totalScore = players.reduce((sum, b) => sum + b.radius, 0);
+  ctx.font = `${24 / scale}px Arial`;
+  ctx.fillStyle = "black";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(
+    `Score: ${Math.floor(totalScore)}`,
+    offsetX + 20,
+    offsetY + canvas.height / scale - 20
+  );
 
   ctx.restore();
 
   movePlayerTowardMouse();
   checkEatFood();
-  interpolatePlayerRadius(); // Smoothly update the player's radius
 
-  // --- Ensure food count stays high ---
-  const FOOD_COUNT = 5000;
+  resolveBlobCollisions();
+  tryMergeBlobs();
+  interpolateBlobRadius(); // Smoothly update blob radii
+
+  const FOOD_COUNT = 33000;
   while (foods.length < FOOD_COUNT) {
     foods.push(randomFood());
   }
-  // ------------------------------------
 
   requestAnimationFrame(draw);
 }
