@@ -1,17 +1,17 @@
 const socket = io();
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 }
 
-window.addEventListener('resize', resizeCanvas);
+window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-socket.on('connect', () => {
-  console.log('Connected to server as', socket.id);
+socket.on("connect", () => {
+  console.log("Connected to server as", socket.id);
 });
 
 const WORLD_WIDTH = 15000;
@@ -32,7 +32,9 @@ function randomFood() {
     x: Math.random() * WORLD_WIDTH,
     y: Math.random() * WORLD_HEIGHT,
     radius: 10,
-    color: ['green', 'red', 'yellow', 'purple', 'orange'][Math.floor(Math.random() * 5)]
+    color: ["green", "red", "yellow", "purple", "orange"][
+      Math.floor(Math.random() * 5)
+    ],
   };
 }
 
@@ -46,6 +48,7 @@ for (let i = 0; i < FOOD_COUNT; i++) {
 // Update mouse event to store mouse position
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
 canvas.addEventListener('mousemove', (e) => {
+
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 });
@@ -92,6 +95,7 @@ window.addEventListener('keydown', (e) => {
 function movePlayerTowardMouse() {
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
+  
   for (let blob of players) {
     const dx = mouse.x - centerX;
     const dy = mouse.y - centerY;
@@ -250,6 +254,7 @@ function draw() {
   ctx.translate(-offsetX, -offsetY);
 
   drawGrid(50);
+
   ctx.strokeStyle = '#ccc';
   ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
   foods.forEach(drawBlob);
@@ -267,8 +272,10 @@ function draw() {
 
   movePlayerTowardMouse();
   checkEatFood();
+
   resolveBlobCollisions();
   tryMergeBlobs();
+
 
   const FOOD_COUNT = 15000;
   while (foods.length < FOOD_COUNT) {
