@@ -2,39 +2,69 @@ const socket = io();
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
 socket.on('connect', () => {
   console.log('Connected to server as', socket.id);
 });
 
+const WORLD_WIDTH = 15000;
+const WORLD_HEIGHT = 15000;
+
 const player = {
-  x: 400,
-  y: 300,
+  x: WORLD_WIDTH / 2,
+  y: WORLD_HEIGHT / 2,
   radius: 30,
   color: 'blue',
   speed: 3
 };
 
-const foods = [
-  { x: 200, y: 150, radius: 10, color: 'green' },
-  { x: 600, y: 400, radius: 10, color: 'red' },
-  { x: 350, y: 500, radius: 10, color: 'yellow' }
-];
+function randomFood() {
+  return {
+    x: Math.random() * WORLD_WIDTH,
+    y: Math.random() * WORLD_HEIGHT,
+    radius: 10,
+    color: ['green', 'red', 'yellow', 'purple', 'orange'][Math.floor(Math.random() * 5)]
+  };
+}
 
-let mouse = { x: player.x, y: player.y };
+// Spawn initial food
+const FOOD_COUNT = 100;
+const foods = [];
+for (let i = 0; i < FOOD_COUNT; i++) {
+  foods.push(randomFood());
+}
+
+let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
 
 canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  mouse.x = e.clientX - rect.left;
-  mouse.y = e.clientY - rect.top;
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
 });
 
 function movePlayerTowardMouse() {
-  const dx = mouse.x - player.x;
-  const dy = mouse.y - player.y;
+  // Calculate mouse position in world coordinates
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const dx = mouse.x - centerX;
+  const dy = mouse.y - centerY;
   const dist = Math.sqrt(dx * dx + dy * dy);
+
+  // Speed decreases more sharply as player gets bigger
+  player.speed = Math.max(1, 100 / player.radius);
+
   if (dist > 1) {
     player.x += (dx / dist) * player.speed;
     player.y += (dy / dist) * player.speed;
+    // Clamp player to world bounds
+    player.x = Math.max(player.radius, Math.min(WORLD_WIDTH - player.radius, player.x));
+    player.y = Math.max(player.radius, Math.min(WORLD_HEIGHT - player.radius, player.y));
   }
 }
 
@@ -47,7 +77,9 @@ function checkEatFood() {
     if (dist < player.radius + food.radius) {
       // Eat the food
       foods.splice(i, 1);
-      player.radius += 2; // Grow player
+      player.radius += 0.5; // Grow player
+      // Spawn new food to keep the count up
+      foods.push(randomFood());
     }
   }
 }
@@ -60,15 +92,64 @@ function drawBlob(blob) {
   ctx.closePath();
 }
 
+function drawGrid(spacing = 50) {
+  ctx.save();
+  ctx.strokeStyle = "#eee";
+  ctx.lineWidth = 1;
+
+  // Vertical lines
+  for (let x = 0; x <= WORLD_WIDTH; x += spacing) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, WORLD_HEIGHT);
+    ctx.stroke();
+  }
+
+  // Horizontal lines
+  for (let y = 0; y <= WORLD_HEIGHT; y += spacing) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(WORLD_WIDTH, y);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Calculate camera offset to keep player centered
+  const offsetX = player.x - canvas.width / 2;
+  const offsetY = player.y - canvas.height / 2;
+
+  ctx.save();
+  ctx.translate(-offsetX, -offsetY);
+
+  // Draw grid
+  drawGrid(50);
+
+  // Draw world border
+  ctx.strokeStyle = '#ccc';
+  ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+  // Draw foods
+  foods.forEach(drawBlob);
+
+  // Draw player
+  drawBlob(player);
+
+  ctx.restore();
 
   movePlayerTowardMouse();
   checkEatFood();
 
-  foods.forEach(drawBlob);
-  
-  drawBlob(player);
+  // --- Ensure food count stays high ---
+  const FOOD_COUNT = 5000;
+  while (foods.length < FOOD_COUNT) {
+    foods.push(randomFood());
+  }
+  // ------------------------------------
 
   requestAnimationFrame(draw);
 }
