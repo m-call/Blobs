@@ -1,28 +1,30 @@
 const socket = io();
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
 function resizeCanvas() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 }
 
-window.addEventListener('resize', resizeCanvas);
+window.addEventListener("resize", resizeCanvas);
 resizeCanvas();
 
-socket.on('connect', () => {
-  console.log('Connected to server as', socket.id);
+socket.on("connect", () => {
+  console.log("Connected to server as", socket.id);
 });
 
 const WORLD_WIDTH = 15000;
 const WORLD_HEIGHT = 15000;
 
+// Add a targetRadius property to the player
 const player = {
   x: WORLD_WIDTH / 2,
   y: WORLD_HEIGHT / 2,
   radius: 30,
-  color: 'blue',
-  speed: 3
+  targetRadius: 30, // New property for smooth transition
+  color: "blue",
+  speed: 3,
 };
 
 function randomFood() {
@@ -30,7 +32,9 @@ function randomFood() {
     x: Math.random() * WORLD_WIDTH,
     y: Math.random() * WORLD_HEIGHT,
     radius: 10,
-    color: ['green', 'red', 'yellow', 'purple', 'orange'][Math.floor(Math.random() * 5)]
+    color: ["green", "red", "yellow", "purple", "orange"][
+      Math.floor(Math.random() * 5)
+    ],
   };
 }
 
@@ -43,7 +47,7 @@ for (let i = 0; i < FOOD_COUNT; i++) {
 
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
 
-canvas.addEventListener('mousemove', (e) => {
+canvas.addEventListener("mousemove", (e) => {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 });
@@ -63,9 +67,21 @@ function movePlayerTowardMouse() {
     player.x += (dx / dist) * player.speed;
     player.y += (dy / dist) * player.speed;
     // Clamp player to world bounds
-    player.x = Math.max(player.radius, Math.min(WORLD_WIDTH - player.radius, player.x));
-    player.y = Math.max(player.radius, Math.min(WORLD_HEIGHT - player.radius, player.y));
+    player.x = Math.max(
+      player.radius,
+      Math.min(WORLD_WIDTH - player.radius, player.x)
+    );
+    player.y = Math.max(
+      player.radius,
+      Math.min(WORLD_HEIGHT - player.radius, player.y)
+    );
   }
+}
+
+// Smoothly interpolate the player's radius
+function interpolatePlayerRadius() {
+  const smoothingFactor = 0.1; // Adjust for smoother or faster transitions
+  player.radius += (player.targetRadius - player.radius) * smoothingFactor;
 }
 
 function checkEatFood() {
@@ -77,7 +93,7 @@ function checkEatFood() {
     if (dist < player.radius + food.radius) {
       // Eat the food
       foods.splice(i, 1);
-      player.radius += 0.5; // Grow player
+      player.targetRadius += 0.5; // Update targetRadius instead of radius
       // Spawn new food to keep the count up
       foods.push(randomFood());
     }
@@ -130,7 +146,7 @@ function draw() {
   drawGrid(50);
 
   // Draw world border
-  ctx.strokeStyle = '#ccc';
+  ctx.strokeStyle = "#ccc";
   ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
   // Draw foods
@@ -143,6 +159,7 @@ function draw() {
 
   movePlayerTowardMouse();
   checkEatFood();
+  interpolatePlayerRadius(); // Smoothly update the player's radius
 
   // --- Ensure food count stays high ---
   const FOOD_COUNT = 5000;
