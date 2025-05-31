@@ -247,7 +247,7 @@ function checkEatFood() {
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist < blob.radius + food.radius) {
         foods.splice(i, 1);
-        blob.radius += 0.2; // or any value you want for growth
+        blob.radius += 0.5; // or any value you want for growth
         score += 3; // Increase score by 3
         foods.push(randomFood());
       }
@@ -455,7 +455,7 @@ function draw() {
   const baseZoom = 1.5; // How zoomed in you are at starting mass (tweak as you like)
   const zoom = baseZoom / Math.max(1, Math.sqrt(totalArea) / 40); // 40 is a tweak factor for feel
 
-  const scale = zoom; // Allow zoom in past 1x
+  const scale = 1; // Fixed zoom, never zoom out or in
 
   // Center on the average position of all blobs
   const bounds = getPlayerBounds();
