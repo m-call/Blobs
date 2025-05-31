@@ -31,25 +31,30 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   btn.addEventListener("click", startGame);
-  input.addEventListener("keydown", e => {
+  input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") startGame();
   });
 });
 
 // Replace the player object with an array of blobs
-let players = [{
-  x: WORLD_WIDTH / 2,
-  y: WORLD_HEIGHT / 2,
-  radius: Math.sqrt(10 / Math.PI), // for mass/score/collision
-  displayRadius: 60, // visually bigger at start (was 30)
-  color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'),
-  speed: 3,
-  splitTime: 0,
-  splitRadius: Math.sqrt(10 / Math.PI),
-  vx: 0,
-  vy: 0,
-  splitBoost: 0
-}];
+let players = [
+  {
+    x: WORLD_WIDTH / 2,
+    y: WORLD_HEIGHT / 2,
+    radius: 30, // 30x30 pixels blob (diameter = 30)
+    color:
+      "#" +
+      Math.floor(Math.random() * 16777215)
+        .toString(16)
+        .padStart(6, "0"),
+    speed: 10,
+    splitTime: 0,
+    splitRadius: 15,
+    vx: 0,
+    vy: 0,
+    splitBoost: 0,
+  },
+];
 
 let score = 10;
 
@@ -79,21 +84,20 @@ for (let i = 0; i < SPIKE_COUNT; i++) {
   spikes.push({
     x: Math.random() * WORLD_WIDTH,
     y: Math.random() * WORLD_HEIGHT,
-    radius: SPIKE_RADIUS
+    radius: SPIKE_RADIUS,
   });
 }
 
 // Update mouse event to store mouse position
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
-canvas.addEventListener('mousemove', (e) => {
-
+canvas.addEventListener("mousemove", (e) => {
   mouse.x = e.clientX;
   mouse.y = e.clientY;
 });
 
 // Splitting logic
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') {
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
     // Only allow splitting if total blobs will not exceed 16
     if (players.length * 2 > 16) return;
 
@@ -138,7 +142,7 @@ window.addEventListener('keydown', (e) => {
           splitRadius: r,
           vx: Math.cos(angle) * boost,
           vy: Math.sin(angle) * boost,
-          splitBoost: boostDuration
+          splitBoost: boostDuration,
         });
         // The other stays in place
         newBlobs.push({
@@ -151,7 +155,7 @@ window.addEventListener('keydown', (e) => {
           splitRadius: r,
           vx: 0,
           vy: 0,
-          splitBoost: 0
+          splitBoost: 0,
         });
       } else {
         newBlobs.push(blob); // Don't split if too small
@@ -209,7 +213,7 @@ function movePlayerTowardMouse() {
       if (blob.radius > 100) {
         blob.speed = Math.max(0.4, 10 / blob.radius); // much slower for big blobs
       } else {
-        blob.speed = Math.max(1, 30 / blob.radius); // slower for small blobs
+        blob.speed = Math.max(2, 30 / blob.radius); // was 1, now 2 for small blobs
       }
 
       if (dist > 1) {
@@ -218,8 +222,16 @@ function movePlayerTowardMouse() {
       }
     }
 
+    // Prevent blob from going out of bounds
+    blob.x = Math.max(blob.radius, Math.min(WORLD_WIDTH - blob.radius, blob.x));
+    blob.y = Math.max(
+      blob.radius,
+      Math.min(WORLD_HEIGHT - blob.radius, blob.y)
+    );
+
     // Blob decay: shrink slightly if above minimum size
-    if (blob.radius > 60) { // Don't decay below starting size
+    if (blob.radius > 60) {
+      // Don't decay below starting size
       blob.radius -= blob.radius * 0.001; // Decay rate, tweak 0.001 as needed
     }
   }
@@ -236,7 +248,7 @@ function checkEatFood() {
       if (dist < blob.radius + food.radius) {
         foods.splice(i, 1);
         blob.radius += 0.2; // or any value you want for growth
-        score += 3;         // Increase score by 3
+        score += 3; // Increase score by 3
         foods.push(randomFood());
       }
     }
@@ -279,10 +291,7 @@ function tryMergeBlobs() {
       // Use splitRadius for merge delay
       const mergeDelayA = Math.max(1000, (a.splitRadius || a.radius) * 1000); // ms
       const mergeDelayB = Math.max(1000, (b.splitRadius || b.radius) * 1000); // ms
-      if (
-        now - a.splitTime > mergeDelayA &&
-        now - b.splitTime > mergeDelayB
-      ) {
+      if (now - a.splitTime > mergeDelayA && now - b.splitTime > mergeDelayB) {
         const dx = a.x - b.x;
         const dy = a.y - b.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -311,7 +320,7 @@ function checkSpikeCollision() {
         const dy = blob.y - spike.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         // If 65% of the blob's area overlaps the spike
-        if (dist < (blob.radius - spike.radius * 0.65)) {
+        if (dist < blob.radius - spike.radius * 0.65) {
           hitSpike = true;
           break;
         }
@@ -337,7 +346,7 @@ function checkSpikeCollision() {
           splitRadius: newRadius,
           vx: Math.cos(angle) * 30,
           vy: Math.sin(angle) * 30,
-          splitBoost: 20
+          splitBoost: 20,
         });
       }
     } else {
@@ -352,7 +361,7 @@ let startingArea = 10;
 let startingRadius = Math.sqrt(startingArea / Math.PI);
 
 function drawBlob(blob) {
-  const r = Math.max(blob.displayRadius || 0, blob.radius);
+  const r = blob.radius;
   ctx.beginPath();
   ctx.arc(blob.x, blob.y, r, 0, Math.PI * 2);
   ctx.fillStyle = blob.color;
@@ -421,7 +430,10 @@ function drawGrid(spacing = 50) {
 }
 
 function getPlayerBounds() {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const blob of players) {
     minX = Math.min(minX, blob.x - blob.radius);
     minY = Math.min(minY, blob.y - blob.radius);
@@ -436,7 +448,10 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // --- Zoom logic ---
-  const totalArea = players.reduce((sum, blob) => sum + Math.PI * blob.radius * blob.radius, 0);
+  const totalArea = players.reduce(
+    (sum, blob) => sum + Math.PI * blob.radius * blob.radius,
+    0
+  );
   const baseZoom = 1.5; // How zoomed in you are at starting mass (tweak as you like)
   const zoom = baseZoom / Math.max(1, Math.sqrt(totalArea) / 40); // 40 is a tweak factor for feel
 
@@ -455,23 +470,20 @@ function draw() {
 
   drawGrid(50);
 
-  ctx.strokeStyle = '#ccc';
+  ctx.strokeStyle = "#ccc";
   ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
   // Draw all foods first
   foods.forEach(drawFood);
 
   // Draw all blobs that are NOT hiding under a spike (drawn below spikes)
-  players.forEach(blob => {
+  players.forEach((blob) => {
     let hiding = false;
     for (let spike of spikes) {
       const dx = blob.x - spike.x;
       const dy = blob.y - spike.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (
-        dist < spike.radius &&
-        blob.radius < spike.radius
-      ) {
+      if (dist < spike.radius && blob.radius < spike.radius) {
         hiding = true;
         break;
       }
@@ -489,7 +501,11 @@ function draw() {
   ctx.fillStyle = "black";
   ctx.textAlign = "left";
   ctx.textBaseline = "bottom";
-  ctx.fillText(`Score: ${Math.floor(score)}`, offsetX + 20, offsetY + canvas.height / scale - 20);
+  ctx.fillText(
+    `Score: ${Math.floor(score)}`,
+    offsetX + 20,
+    offsetY + canvas.height / scale - 20
+  );
 
   ctx.restore();
 
@@ -506,7 +522,10 @@ function draw() {
   }
 
   // Calculate score as mass, but never below 10
-  score = Math.max(10, players.reduce((sum, blob) => sum + Math.PI * blob.radius * blob.radius, 0));
+  score = Math.max(
+    10,
+    players.reduce((sum, blob) => sum + Math.PI * blob.radius * blob.radius, 0)
+  );
 
   requestAnimationFrame(draw);
 }
