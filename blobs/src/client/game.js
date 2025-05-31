@@ -40,17 +40,18 @@ window.addEventListener("DOMContentLoaded", () => {
 let players = [{
   x: WORLD_WIDTH / 2,
   y: WORLD_HEIGHT / 2,
-  radius: 30,
-  color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'), // random color
+  radius: Math.sqrt(10 / Math.PI), // for mass/score/collision
+  displayRadius: 60, // visually bigger at start (was 30)
+  color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'),
   speed: 3,
   splitTime: 0,
-  splitRadius: 30,
+  splitRadius: Math.sqrt(10 / Math.PI),
   vx: 0,
   vy: 0,
   splitBoost: 0
 }];
 
-let score = 30;
+let score = 10;
 
 function randomFood() {
   return {
@@ -206,9 +207,9 @@ function movePlayerTowardMouse() {
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       if (blob.radius > 100) {
-        blob.speed = Math.max(0.8, 25 / blob.radius); // slower for big blobs
+        blob.speed = Math.max(0.4, 10 / blob.radius); // much slower for big blobs
       } else {
-        blob.speed = Math.max(2, 120 / blob.radius); // much faster for small blobs
+        blob.speed = Math.max(1, 30 / blob.radius); // slower for small blobs
       }
 
       if (dist > 1) {
@@ -216,8 +217,11 @@ function movePlayerTowardMouse() {
         blob.y += (dy / dist) * blob.speed;
       }
     }
-    blob.x = Math.max(blob.radius, Math.min(WORLD_WIDTH - blob.radius, blob.x));
-    blob.y = Math.max(blob.radius, Math.min(WORLD_HEIGHT - blob.radius, blob.y));
+
+    // Blob decay: shrink slightly if above minimum size
+    if (blob.radius > 60) { // Don't decay below starting size
+      blob.radius -= blob.radius * 0.001; // Decay rate, tweak 0.001 as needed
+    }
   }
 }
 
@@ -343,9 +347,14 @@ function checkSpikeCollision() {
   players = newBlobs;
 }
 
+// Area = π * r^2 => r = sqrt(Area / π)
+let startingArea = 10;
+let startingRadius = Math.sqrt(startingArea / Math.PI);
+
 function drawBlob(blob) {
+  const r = Math.max(blob.displayRadius || 0, blob.radius);
   ctx.beginPath();
-  ctx.arc(blob.x, blob.y, blob.radius, 0, Math.PI * 2);
+  ctx.arc(blob.x, blob.y, r, 0, Math.PI * 2);
   ctx.fillStyle = blob.color;
   ctx.fill();
   ctx.closePath();
@@ -353,11 +362,11 @@ function drawBlob(blob) {
   // Draw player name above the blob (only for your blobs)
   if (playerName) {
     ctx.save();
-    ctx.font = `${Math.max(16, blob.radius / 1.5)}px Arial`;
+    ctx.font = `${Math.max(16, r / 1.5)}px Arial`;
     ctx.fillStyle = "black";
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText(playerName, blob.x, blob.y - blob.radius - 5);
+    ctx.fillText(playerName, blob.x, blob.y - r - 5);
     ctx.restore();
   }
 }
@@ -427,17 +436,14 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // --- Zoom logic ---
-  const bounds = getPlayerBounds();
-  const blobsWidth = bounds.maxX - bounds.minX;
-  const blobsHeight = bounds.maxY - bounds.minY;
-  const padding = 200; // Extra space around blobs
+  const totalArea = players.reduce((sum, blob) => sum + Math.PI * blob.radius * blob.radius, 0);
+  const baseZoom = 1.5; // How zoomed in you are at starting mass (tweak as you like)
+  const zoom = baseZoom / Math.max(1, Math.sqrt(totalArea) / 40); // 40 is a tweak factor for feel
 
-  // Calculate scale to fit all blobs in view
-  const scaleX = canvas.width / (blobsWidth + padding);
-  const scaleY = canvas.height / (blobsHeight + padding);
-  const scale = Math.min(scaleX, scaleY, 1); // Never zoom in past 1x
+  const scale = zoom; // Allow zoom in past 1x
 
   // Center on the average position of all blobs
+  const bounds = getPlayerBounds();
   const centerX = (bounds.minX + bounds.maxX) / 2;
   const centerY = (bounds.minY + bounds.maxY) / 2;
   const offsetX = centerX - canvas.width / (2 * scale);
@@ -483,7 +489,7 @@ function draw() {
   ctx.fillStyle = "black";
   ctx.textAlign = "left";
   ctx.textBaseline = "bottom";
-  ctx.fillText(`Score: ${score}`, offsetX + 20, offsetY + canvas.height / scale - 20);
+  ctx.fillText(`Score: ${Math.floor(score)}`, offsetX + 20, offsetY + canvas.height / scale - 20);
 
   ctx.restore();
 
@@ -498,6 +504,9 @@ function draw() {
   while (foods.length < FOOD_COUNT) {
     foods.push(randomFood());
   }
+
+  // Calculate score as mass, but never below 10
+  score = Math.max(10, players.reduce((sum, blob) => sum + Math.PI * blob.radius * blob.radius, 0));
 
   requestAnimationFrame(draw);
 }
