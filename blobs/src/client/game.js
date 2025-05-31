@@ -17,12 +17,31 @@ socket.on("connect", () => {
 const WORLD_WIDTH = 15000;
 const WORLD_HEIGHT = 15000;
 
+let playerName = "";
+
+window.addEventListener("DOMContentLoaded", () => {
+  const overlay = document.getElementById("nameOverlay");
+  const input = document.getElementById("playerName");
+  const btn = document.getElementById("startGameBtn");
+
+  function startGame() {
+    playerName = input.value.trim();
+    overlay.style.display = "none";
+    // Optionally: send playerName to server here
+  }
+
+  btn.addEventListener("click", startGame);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") startGame();
+  });
+});
+
 // Replace the player object with an array of blobs
 let players = [{
   x: WORLD_WIDTH / 2,
   y: WORLD_HEIGHT / 2,
   radius: 30,
-  color: 'blue',
+  color: '#' + Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0'), // random color
   speed: 3,
   splitTime: 0,
   splitRadius: 30,
@@ -330,6 +349,17 @@ function drawBlob(blob) {
   ctx.fillStyle = blob.color;
   ctx.fill();
   ctx.closePath();
+
+  // Draw player name above the blob (only for your blobs)
+  if (playerName) {
+    ctx.save();
+    ctx.font = `${Math.max(16, blob.radius / 1.5)}px Arial`;
+    ctx.fillStyle = "black";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(playerName, blob.x, blob.y - blob.radius - 5);
+    ctx.restore();
+  }
 }
 
 function drawSpike(spike) {
@@ -423,7 +453,7 @@ function draw() {
   ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
   // Draw all foods first
-  foods.forEach(drawBlob);
+  foods.forEach(drawFood);
 
   // Draw all blobs that are NOT hiding under a spike (drawn below spikes)
   players.forEach(blob => {
@@ -433,8 +463,8 @@ function draw() {
       const dy = blob.y - spike.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (
-        dist < spike.radius && // overlapping
-        blob.radius < spike.radius // strictly smaller than the spike
+        dist < spike.radius &&
+        blob.radius < spike.radius
       ) {
         hiding = true;
         break;
@@ -473,3 +503,11 @@ function draw() {
 }
 
 draw();
+
+function drawFood(food) {
+  ctx.beginPath();
+  ctx.arc(food.x, food.y, food.radius, 0, Math.PI * 2);
+  ctx.fillStyle = food.color;
+  ctx.fill();
+  ctx.closePath();
+}
